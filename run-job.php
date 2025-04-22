@@ -3,16 +3,18 @@
 
 use Symfony\Component\Process\Process;
 use Symfony\Component\Process\Exception\ProcessFailedException;
+use Symfony\Component\Process\PhpExecutableFinder;
 
 require __DIR__ . '/vendor/autoload.php';
 
-$configPath = __DIR__ . '/config/background-jobs.php';
-$logPath = __DIR__ . '/storage/logs/background_jobs.log';
-$errorLogPath = __DIR__ . '/storage/logs/background_jobs_errors.log';
-$jobsDir = __DIR__ . '/storage/jobs/';
+$configPath    = __DIR__ . '/config/background-jobs.php';
+$logPath       = __DIR__ . '/storage/logs/background_jobs.log';
+$errorLogPath  = __DIR__ . '/storage/logs/background_jobs_errors.log';
+$jobsDir       = __DIR__ . '/storage/jobs/';
 
+// Ensure the config file exists.
 if (!file_exists($configPath)) {
-    file_put_contents($errorLogPath, "[ERROR] Config file not found: background-jobs.php\n", FILE_APPEND);
+    file_put_contents($errorLogPath, "[ERROR] Config file not found.\n", FILE_APPEND);
     exit(1);
 }
 
@@ -23,73 +25,107 @@ if ($argc < 3) {
     exit(1);
 }
 
-$className = $argv[1];
+// Get the command-line arguments.
+$inputClass = $argv[1]; // e.g., "LessonStartedService"
 $methodName = $argv[2];
-$params = isset($argv[3]) ? explode(',', $argv[3]) : [];
+$params     = isset($argv[3]) ? explode(',', $argv[3]) : [];
 
-// Detect OS Type
-$isWindows = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
+// If the input class does not contain a backslash, prepend the default namespace.
+if (strpos($inputClass, '\\') === false) {
+    $fullClassName  = "App\\Services\\" . $inputClass;
+    $shortClassName = $inputClass;
+} else {
+    $fullClassName = $inputClass;
+    $parts = explode('\\', $fullClassName);
+    $shortClassName = end($parts);
+}
 
-// Security Check
-if (!isset($config['allowed_jobs'][$className]) || !in_array($methodName, $config['allowed_jobs'][$className])) {
-    file_put_contents($errorLogPath, "[SECURITY] Unauthorized job execution attempt: $className::$methodName\n", FILE_APPEND);
+// SECURITY CHECK: Compare against allowed_jobs using the short class name.
+if (
+    !isset($config['allowed_jobs'][$shortClassName]) ||
+    !in_array($methodName, $config['allowed_jobs'][$shortClassName])
+) {
+    file_put_contents(
+        $errorLogPath,
+        "[SECURITY] Unauthorized job execution attempt: $shortClassName::$methodName\n",
+        FILE_APPEND
+    );
     exit(1);
 }
 
-// Ensure class exists
-if (!class_exists($className)) {
-    file_put_contents($errorLogPath, "[ERROR] Class does not exist: $className\n", FILE_APPEND);
+// Ensure the class exists (using the fully qualified name).
+if (!class_exists($fullClassName)) {
+    file_put_contents($errorLogPath, "[ERROR] Class does not exist: $fullClassName\n", FILE_APPEND);
     exit(1);
 }
 
-// Ensure method exists in class
-$instance = new $className();
+// Ensure that the method exists.
+$instance = new $fullClassName();
 if (!method_exists($instance, $methodName)) {
-    file_put_contents($errorLogPath, "[ERROR] Method not found: $className::$methodName\n", FILE_APPEND);
+    file_put_contents($errorLogPath, "[ERROR] Method not found: $fullClassName::$methodName\n", FILE_APPEND);
     exit(1);
 }
 
-// Lock File - Prevent Duplicate Execution
-$lockFile = $jobsDir . "{$className}_{$methodName}.lock";
+// LOCK FILE – Prevent Duplicate Execution (using the short class name).
+$lockFile = $jobsDir . "{$shortClassName}_{$methodName}.lock";
 if (file_exists($lockFile)) {
-    file_put_contents($errorLogPath, "[WARNING] Duplicate job execution attempt: $className::$methodName\n", FILE_APPEND);
+    file_put_contents($errorLogPath, "[WARNING] Duplicate job execution attempt.\n", FILE_APPEND);
     exit(1);
 }
 touch($lockFile);
 
-// Execute Job with Retry & Logging
-$maxRetries = 3;
-$retryDelay = 5;
-$attempts = 0;
+// Locate the PHP executable.
+$phpFinder = new PhpExecutableFinder();
+$phpBinary = $phpFinder->find() ?: 'php';
 
-while ($attempts < $maxRetries) {
-    try {
-        $command = "php -r 'call_user_func_array([new $className, \"$methodName\"], " . json_encode($params) . ");'";
+// Get the absolute path to autoload.php and normalize slashes for Windows.
+$autoloadPath = realpath(__DIR__ . '/vendor/autoload.php');
+$autoloadPath = str_replace('\\', '/', $autoloadPath);
 
-        if ($isWindows) {
-            // Windows execution
-            $process = new Process(["cmd.exe", "/c", "start /B " . $command]);
+// Encode parameters as JSON and then base64 encode them to prevent quoting issues.
+$encodedParams = base64_encode(json_encode($params));
+
+// Build the inline PHP code that will be executed.
+// The code includes the autoloader, decodes the parameters (defaulting to an empty array if needed),
+// and then calls the specified service method.
+$code = "require '$autoloadPath'; ";
+$code .= "\$args = json_decode(base64_decode('$encodedParams'), true); ";
+$code .= "if (!is_array(\$args)) { \$args = []; } ";
+$code .= "call_user_func_array([new $fullClassName, '$methodName'], \$args);";
+
+// Build the final command string. The entire -r argument is wrapped in double quotes.
+$command = "$phpBinary -r \"" . $code . "\"";
+
+// (Optional: Log the command for debugging purposes.)
+// file_put_contents($logPath, "[DEBUG] Command: $command\n", FILE_APPEND);
+
+try {
+    $process = Process::fromShellCommandline($command);
+    $process->setTimeout($config['max_execution_time'] ?? 300);
+
+    // Run synchronously; stream output for real-time logging.
+    $process->run(function ($type, $buffer) use ($logPath, $errorLogPath) {
+        if ($type === Process::ERR) {
+            file_put_contents($errorLogPath, "[ERROR] $buffer\n", FILE_APPEND);
         } else {
-            // Unix/Linux/macOS execution
-            $process = new Process(["nohup", $command, ">", "/dev/null", "2>&1", "&"]);
+            file_put_contents($logPath, "[INFO] Running Job: $buffer\n", FILE_APPEND);
         }
+    });
 
-        $process->run();
-
-        if (!$process->isSuccessful()) {
-            throw new ProcessFailedException($process);
-        }
-
-        file_put_contents($logPath, "[SUCCESS] $className::$methodName executed successfully.\n", FILE_APPEND);
-        break;
-    } catch (Exception $e) {
-        file_put_contents($errorLogPath, "[ERROR] Attempt $attempts failed: " . $e->getMessage() . "\n", FILE_APPEND);
-        sleep($retryDelay);
+    if (!$process->isSuccessful()) {
+        throw new ProcessFailedException($process);
     }
-    $attempts++;
+    
+    file_put_contents($logPath, "[SUCCESS] $fullClassName::$methodName executed successfully.\n", FILE_APPEND);
+} catch (ProcessFailedException $e) {
+    file_put_contents(
+        $errorLogPath,
+        "[ERROR] Job execution failed: " . $e->getMessage() . "\n",
+        FILE_APPEND
+    );
 }
 
-// Cleanup Lock File
+// Cleanup: remove the lock file.
 unlink($lockFile);
 
 exit(0);
