@@ -8,6 +8,7 @@ return [
         'LessonStartedService' => ['handle'],
         'LessonEndedService' => ['handle'],
         'UserLoginService' => ['handle'],
+        'UserLogoutService' => ['handle'],
     ],
     'retry_attempts' => 3, 
     'retry_delay_seconds' => 5,
@@ -17,5 +18,6 @@ return [
         'LessonStartedService' => 'high',
         'LessonEndedService' => 'medium',
         'UserLoginService' => 'low',
+        'UserLogoutService' => 'low',
     ],
 ];
