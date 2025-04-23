@@ -1,5 +1,3 @@
-
-```markdown
 # Laravel Custom Background Job Runner
 
 This project implements a custom background job runner for Laravel that executes PHP classes as background jobs without using Laravel's built-in queue system. It emphasizes scalability, error handling, cross-platform compatibility, and controlled execution of pre-approved job classes and methods.
