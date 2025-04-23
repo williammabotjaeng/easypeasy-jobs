@@ -29,7 +29,7 @@ This project demonstrates a custom background job runner that:
 
 1. **Clone the Repository:**  
    ```bash
-   git clone https://github.com/yourusername/laravel-background-job-runner.git
+   git clone https://github.com/williammabotjaeng/easypeasy-jobs.git
    cd laravel-background-job-runner
    ```
 
