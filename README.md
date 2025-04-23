@@ -172,6 +172,103 @@ This job logs the user logout time and optionally resets the dashboard.
 - **Chained Jobs:** Triggering multiple jobs sequentially, based on the output of a previous job.
 - **Exception-based Retry Logic:** Different handling strategies for different types of exceptions.
 
+Below is an example addition to your documentation that details how the dashboard interface works, how to run it, and how delayed jobs function:
+
+---
+
+## Advanced Features
+
+- **Web-Based Dashboard:** A Laravel web interface to visualize job executions, statuses, and error logs.
+- **Job Delays and Priorities:** Implement delayed execution and priority queuing.
+- **Chained Jobs:** Triggering multiple jobs sequentially, based on the output of a previous job.
+- **Exception-based Retry Logic:** Different handling strategies for different types of exceptions.
+
+### Dashboard Interface Documentation
+
+The dashboard interface is built into your Laravel application and provides a centralized view of your background jobs. It comprises several sections, each serving a specific purpose:
+
+#### Components
+
+1. **Running Jobs:**  
+   - **Functionality:**  
+     The dashboard scans the `storage/jobs` directory for lock files (e.g., `LessonCreatedService_handle.lock`) that indicate which jobs are currently in progress.  
+   - **Displayed Information:**  
+     Each entry shows the lock file name and a placeholder for the retry count (currently set to 0), along with an action button to cancel the running job.
+   - **Cancel Action:**  
+     Pressing the "Cancel Job" button sends a POST request to a dedicated cancellation route. This route deletes the lock file, effectively marking the job as canceled.  
+   - **Usage:**  
+     To check running jobs, navigate to your job dashboard at:  
+     ```
+
+     http://localhost:8000 This should redirect to /dashboard/jobs
+
+     http://localhost:8000/dashboard/jobs
+
+     ```
+
+2. **Job Execution Log:**  
+   - **Functionality:**  
+     This section displays the job execution log generated in the `storage/logs/background_jobs.log` file.  
+   - **Displayed Information:**  
+     Each log entry includes a timestamp, the job class, method, and the status (e.g., INFO, SUCCESS, ERROR) detailing the job's progress or completion.
+  
+3. **Error Log:**  
+   - **Functionality:**  
+     Errors encountered during job execution are logged in `storage/logs/background_jobs_errors.log` and displayed in this section.  
+   - **Displayed Information:**  
+     You’ll see detailed error messages that can help you debug issues with job execution.
+
+#### Running the Dashboard
+
+1. **Access:**  
+   - Start your Laravel development server (e.g., using `php artisan serve`).
+   - Navigate to the home route ("/") or directly to `/dashboard/jobs`.  
+     *Note: The home route automatically redirects to `/dashboard/jobs` if you have set this in your routes file.*
+
+2. **Usage:**  
+   - View running jobs and use the cancellation form for jobs that are currently in progress.
+   - Scroll through the job execution and error logs to monitor system behavior.
+
+---
+
+### Delayed Jobs Documentation
+
+Delayed job execution allows you to specify a delay (in seconds) before a job is processed. This is particularly useful when a job must wait for a given time period (for example, to allow a transaction to complete or to perform scheduled tasks).
+
+#### How It Works
+
+- **Command-Line Usage:** When launching a job from the CLI, you can provide an additional parameter to set the delay. For instance:
+  ```bash
+  php run-job.php LessonCreatedService handle "English Grammar 101" 25
+  ```
+  In this example, the job execution is delayed by 25 seconds before the job is started.
+
+  This is ideal for testing running jobs functionality on the Dashboard.
+
+- **Global Helper Function:**  
+  The global helper function `runBackgroundJob()` has been enhanced to support a delay parameter.  
+  **Example:**
+  ```php
+  runBackgroundJob('LessonCreatedService', 'handle', ['English Grammar 101'], 10);
+  ```
+  This call schedules the job to be executed with a 10-second delay.
+
+#### Implementation Details
+
+- **Delay Mechanism:**  
+  In `run-job.php`, if a delay is provided, the script logs an informational message and then uses PHP’s `sleep()` function to pause execution for the specified number of seconds before proceeding with the job.
+
+- **Configuration:**  
+  You can optionally adjust or extend delay settings in the `config/background-jobs.php` configuration file. For example, you might add a default delay or adjust execution-related settings based on job priorities.
+
+---
+
+### Summary
+
+- **Dashboard Interface:** Offers real-time visualization of running jobs (via lock files), comprehensive job execution logs, error logs, and job management actions (like cancellation).  
+- **Delayed Jobs:** Enhance scheduling capabilities by allowing jobs to wait a specified number of seconds before execution. This is supported both when using the CLI runner and via the global helper function.
+
+
 ## Documentation & Support
 
 For further details:
