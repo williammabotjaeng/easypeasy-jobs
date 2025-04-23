@@ -1,6 +1,3 @@
-Below is an example of a comprehensive **README.md** file that documents your custom background job runner system. This document explains how to use the global helper function, how to call background jobs with examples, how to configure retry attempts and delays, and how to register allowed classes and methods.
-
----
 
 ```markdown
 # Laravel Custom Background Job Runner
