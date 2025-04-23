@@ -172,17 +172,6 @@ This job logs the user logout time and optionally resets the dashboard.
 - **Chained Jobs:** Triggering multiple jobs sequentially, based on the output of a previous job.
 - **Exception-based Retry Logic:** Different handling strategies for different types of exceptions.
 
-Below is an example addition to your documentation that details how the dashboard interface works, how to run it, and how delayed jobs function:
-
----
-
-## Advanced Features
-
-- **Web-Based Dashboard:** A Laravel web interface to visualize job executions, statuses, and error logs.
-- **Job Delays and Priorities:** Implement delayed execution and priority queuing.
-- **Chained Jobs:** Triggering multiple jobs sequentially, based on the output of a previous job.
-- **Exception-based Retry Logic:** Different handling strategies for different types of exceptions.
-
 ### Dashboard Interface Documentation
 
 The dashboard interface is built into your Laravel application and provides a centralized view of your background jobs. It comprises several sections, each serving a specific purpose:
@@ -199,6 +188,8 @@ The dashboard interface is built into your Laravel application and provides a ce
    - **Usage:**  
      To check running jobs, navigate to your job dashboard at:  
      ```
+
+     Use Command: php artisan serve
 
      http://localhost:8000 This should redirect to /dashboard/jobs
 
