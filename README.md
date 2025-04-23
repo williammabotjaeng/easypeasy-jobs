@@ -185,12 +185,12 @@ The dashboard interface is built into your Laravel application and provides a ce
      Each entry shows the lock file name and a placeholder for the retry count (currently set to 0), along with an action button to cancel the running job.
    - **Cancel Action:**  
      Pressing the "Cancel Job" button sends a POST request to a dedicated cancellation route. This route deletes the lock file, effectively marking the job as canceled.  
-   - **Usage:**  
+   - **Usage:**
+     
+     <strong>Note:</strong> To launch the Dasboard use the command ```php artisan serve```
+     
      To check running jobs, navigate to your job dashboard at:  
      ```
-
-     <strong>Note:</strong> To launch the Dasboard use the command ```php artisan serve```
-
      http://localhost:8000 This should redirect to /dashboard/jobs
 
      http://localhost:8000/dashboard/jobs
