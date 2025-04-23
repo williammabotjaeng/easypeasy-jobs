@@ -12,15 +12,15 @@ $logPath      = __DIR__ . '/storage/logs/background_jobs.log';
 $errorLogPath = __DIR__ . '/storage/logs/background_jobs_errors.log';
 $jobsDir      = __DIR__ . '/storage/jobs/';
 
-// Helper function to get current timestamp
+// Helper function to get current timestamp.
 function currentTimestamp() {
     return date('Y-m-d H:i:s');
 }
 
-// Logging helper (optional, but helps keep consistency)
+// Logging helper for consistent log entries.
 function logMessage($file, $class, $method, $status, $message = '') {
     $timestamp = currentTimestamp();
-    $logLine = "[$timestamp] [$status] $class::$method " . ($message ? "- " . $message : "") . "\n";
+    $logLine = "[$timestamp] [$status] $class::$method" . ($message ? " - $message" : "") . "\n";
     file_put_contents($file, $logLine, FILE_APPEND);
 }
 
@@ -41,6 +41,12 @@ if ($argc < 3) {
 $inputClass = $argv[1]; // e.g., "LessonStartedService"
 $methodName = $argv[2];
 $params     = isset($argv[3]) ? explode(',', $argv[3]) : [];
+
+// Optional delay parameter as the fifth argument.
+$delaySeconds = 0;
+if ($argc >= 5) {
+    $delaySeconds = (int)$argv[4];
+}
 
 // Prepend default namespace if not provided.
 if (strpos($inputClass, '\\') === false) {
@@ -82,26 +88,31 @@ if (file_exists($lockFile)) {
 }
 touch($lockFile);
 
+// If a delay is specified, log and wait before executing the job.
+if ($delaySeconds > 0) {
+    logMessage($logPath, $shortClassName, $methodName, 'INFO', "Delaying job execution by {$delaySeconds} seconds.");
+    sleep($delaySeconds);
+}
+
 // Locate PHP Binary.
-$phpFinder = new PhpExecutableFinder();
-$phpBinary = $phpFinder->find() ?: 'php';
+$phpFinder   = new PhpExecutableFinder();
+$phpBinary   = $phpFinder->find() ?: 'php';
 
 // Get absolute autoloader path and normalize slashes for Windows.
 $autoloadPath = realpath(__DIR__ . '/vendor/autoload.php');
 $autoloadPath = str_replace('\\', '/', $autoloadPath);
 
-// Encode parameters using base64 to prevent quoting issues.
+// Encode parameters using base64 to avoid quoting issues.
 $encodedParams = base64_encode(json_encode($params));
 
 // Build the inline PHP code.
-// The code includes the autoloader, decodes the parameters (defaulting to an empty array if needed),
-// and then calls the specified service method.
+// It includes the autoloader, decodes parameters and calls the specified method.
 $code  = "require '$autoloadPath'; ";
 $code .= "\$args = json_decode(base64_decode('$encodedParams'), true); ";
 $code .= "if (!is_array(\$args)) { \$args = []; } ";
 $code .= "call_user_func_array([new $fullClassName, '$methodName'], \$args);";
 
-// Build the final command string. The entire -r argument is wrapped in double quotes.
+// Build the final command string with the inline code wrapped in double quotes.
 $command = "$phpBinary -r \"" . $code . "\"";
 
 // Execute the job.
@@ -109,7 +120,7 @@ try {
     $process = Process::fromShellCommandline($command);
     $process->setTimeout($config['max_execution_time'] ?? 300);
     
-    // Run synchronously while logging standard output and errors.
+    // Run synchronously while logging output.
     $process->run(function ($type, $buffer) use ($logPath, $errorLogPath, $shortClassName, $methodName) {
         if ($type === Process::ERR) {
             logMessage($errorLogPath, $shortClassName, $methodName, 'ERROR', $buffer);
