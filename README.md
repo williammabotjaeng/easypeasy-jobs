@@ -189,7 +189,7 @@ The dashboard interface is built into your Laravel application and provides a ce
      To check running jobs, navigate to your job dashboard at:  
      ```
 
-     Use Command: php artisan serve
+     <strong>Note:</strong> To launch the Dasboard use the command ```php artisan serve```
 
      http://localhost:8000 This should redirect to /dashboard/jobs
 
